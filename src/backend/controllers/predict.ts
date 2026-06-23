@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/backend/lib/auth';
 import { prisma } from '@/backend/lib/prisma';
 import { predictSchema } from '@/shared/validators';
 import { groq, extractJSONArray, PredictResult } from '@/backend/lib/groq';
 
 export async function handlePredict(req: Request) {
   try {
-    // 1. Verify user authentication
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
-    }
-
-    // 2. Parse and validate student profile
+    // 1. Parse and validate student profile
     const body = await req.json();
     const validation = predictSchema.safeParse(body);
     if (!validation.success) {
