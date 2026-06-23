@@ -13,7 +13,16 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+  const connectionString = process.env.DATABASE_URL || '';
+  const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+
+  if (isLocal) {
+    return new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    });
+  }
+
+  const pool = new Pool({ connectionString });
   const adapter = new PrismaNeon(pool);
   return new PrismaClient({
     adapter,

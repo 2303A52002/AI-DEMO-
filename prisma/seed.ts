@@ -4,11 +4,21 @@ import { PrismaClient } from '@prisma/client';
 import ws from 'ws';
 import * as bcrypt from 'bcryptjs';
 
-// Neon WebSocket uses WSS on port 443 (not 5432), bypasses firewall
-neonConfig.webSocketConstructor = ws;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
-const adapter = new PrismaNeon(pool);
-const prisma = new PrismaClient({ adapter });
+const connectionString = process.env.DATABASE_URL || '';
+const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+
+let prisma: PrismaClient;
+let pool: any;
+
+if (isLocal) {
+  prisma = new PrismaClient();
+} else {
+  // Neon WebSocket uses WSS on port 443 (not 5432), bypasses firewall
+  neonConfig.webSocketConstructor = ws;
+  pool = new Pool({ connectionString });
+  const adapter = new PrismaNeon(pool);
+  prisma = new PrismaClient({ adapter });
+}
 
 
 async function main() {
@@ -36,7 +46,14 @@ async function main() {
   }
   console.log(`Created/found ${dbUsers.length} users.`);
 
-  // 2. Clear Existing Data (excluding Users to avoid foreign key issues)
+  // 2. Check if colleges already exist to avoid resetting database data on redeployment
+  const collegeCount = await prisma.college.count();
+  if (collegeCount > 0) {
+    console.log('Database already has colleges. Skipping college seeding.');
+    return;
+  }
+
+  // Clear Existing Data (excluding Users to avoid foreign key issues)
   await prisma.savedCollege.deleteMany({});
   await prisma.review.deleteMany({});
   await prisma.placement.deleteMany({});
@@ -1354,5 +1371,8 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await pool.end();
+    await prisma.$disconnect();
+    if (pool) {
+      await pool.end();
+    }
   });
